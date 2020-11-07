@@ -1,7 +1,8 @@
 # Github RepositorySelector
 
 Repositories are searched from github  based on these attributes.
-    -  More than 100 commits
+
+    - More than 100 commits
     - More than 10 releases
     - More than 2 contributors
     - Has minimum 500 stars

@@ -74,7 +74,7 @@ public class GitHubRequestUtil {
             int count = getItemCount(repositoryInfo.getCommitsUrl(), properties);
             repositoryInfo.setCommitCount(count);
 
-            return count > 100;
+            return count > Integer.valueOf(properties.getProperty("minimumCommits"));
         };
 
         repositoryInfoList = getFilteredRepositoryList(repositoryInfoList, commitCountPredicate);
@@ -83,7 +83,7 @@ public class GitHubRequestUtil {
             int count = getItemCount(repositoryInfo.getContributorsUrl(), properties);
             repositoryInfo.setContributorCount(count);
 
-            return count > 2;
+            return count > Integer.valueOf(properties.getProperty("minimumContributor"));
         };
 
         repositoryInfoList = getFilteredRepositoryList(repositoryInfoList, contributorPredicate);
@@ -92,7 +92,7 @@ public class GitHubRequestUtil {
             int count = getItemCount(repositoryInfo.getTagsUrl(), properties);
             repositoryInfo.setReleaseCount(count);
 
-            return count > 10;
+            return count > Integer.valueOf(properties.getProperty("minimumRelease"));
         };
 
         repositoryInfoList = getFilteredRepositoryList(repositoryInfoList, releaseCountPredicate);
@@ -100,6 +100,15 @@ public class GitHubRequestUtil {
         System.out.println("Total Repository List Size: " + repositoryInfoList.size());
 
         serializeRepositoryList(repositoryInfoList);
+    }
+
+    public static void serializeRepositoryList(List<RepositoryInfo> repositoryInfoList) {
+        try {
+            getObjectMapper().writeValue(new File("output/repositoryList.json"), repositoryInfoList);
+
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
     }
 
     private static List<RepositoryInfo> getFilteredRepositoryList(List<RepositoryInfo> repositoryInfoList,
@@ -113,15 +122,6 @@ public class GitHubRequestUtil {
         Date end = new Date();
         System.out.println("Elapsed Time (In Seconds):" + TimeUnit.MILLISECONDS.toSeconds(end.getTime() - start.getTime()));
         return repositoryInfoList;
-    }
-
-    public static void serializeRepositoryList(List<RepositoryInfo> repositoryInfoList) {
-        try {
-            getObjectMapper().writeValue(new File("output/repositoryList.json"), repositoryInfoList);
-
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
     }
 
     private static int getItemCount(String itemUriStr, Properties properties) {

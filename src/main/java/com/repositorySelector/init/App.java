@@ -1,6 +1,9 @@
 package com.repositorySelector.init;
 
 import com.repositorySelector.util.GitHubRequestUtil;
+import com.repositorySelector.util.PropertyReader;
+
+import java.util.Properties;
 
 /**
  * @author Diptopol
@@ -11,7 +14,8 @@ public class App {
     public static void main(String[] args) {
         System.out.println("init");
 
-        GitHubRequestUtil.processRepositoryRequest();
+        PropertyReader propertyReader = new PropertyReader();
+        GitHubRequestUtil.processRepositoryRequest(propertyReader.getProperties());
     }
 
 

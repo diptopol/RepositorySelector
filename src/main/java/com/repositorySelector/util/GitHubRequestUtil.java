@@ -20,10 +20,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -36,22 +33,20 @@ import java.util.stream.Collectors;
  */
 public class GitHubRequestUtil {
 
-    //TODO: make it confidential
-    private static final String token = "";
     private static final int MAX_ITEM_LIMIT = 100;
 
-    public static void processRepositoryRequest() {
+    public static void processRepositoryRequest(Properties properties) {
         List<RepositoryInfo> repositoryInfoList = new ArrayList<>();
 
-        LocalDate searchFrom = LocalDate.parse("2008-01-01");
+        LocalDate searchFrom = LocalDate.parse(properties.getProperty("searchStartsFrom"));
 
-        while (searchFrom.isBefore(LocalDate.parse("2018-01-01"))) {
+        while (searchFrom.isBefore(LocalDate.parse(properties.getProperty("searchEnds")))) {
             int totalCount = -1;
             int currentPage = 0;
             do {
                 try {
                     String repositoryResponseJson = processGithubRequest(getGithubRepositoryURI(currentPage,
-                            getSearchParams(searchFrom, searchFrom.plusYears(1))));
+                            getSearchParams(searchFrom, searchFrom.plusYears(1), properties)), properties);
 
                     RepositoryResponse repositoryResponse = getObjectMapper().readValue(repositoryResponseJson,
                             RepositoryResponse.class);
@@ -73,11 +68,10 @@ public class GitHubRequestUtil {
             } while (repositoryInfoList.size() < totalCount);
 
             searchFrom = searchFrom.plusYears(1);
-            System.out.println(searchFrom);
         }
 
         Predicate<RepositoryInfo> commitCountPredicate = repositoryInfo -> {
-            int count = getItemCount(repositoryInfo.getCommitsUrl());
+            int count = getItemCount(repositoryInfo.getCommitsUrl(), properties);
             repositoryInfo.setCommitCount(count);
 
             return count > 100;
@@ -86,7 +80,7 @@ public class GitHubRequestUtil {
         repositoryInfoList = getFilteredRepositoryList(repositoryInfoList, commitCountPredicate);
 
         Predicate<RepositoryInfo> contributorPredicate = repositoryInfo -> {
-            int count = getItemCount(repositoryInfo.getContributorsUrl());
+            int count = getItemCount(repositoryInfo.getContributorsUrl(), properties);
             repositoryInfo.setContributorCount(count);
 
             return count > 2;
@@ -95,7 +89,7 @@ public class GitHubRequestUtil {
         repositoryInfoList = getFilteredRepositoryList(repositoryInfoList, contributorPredicate);
 
         Predicate<RepositoryInfo> releaseCountPredicate = repositoryInfo -> {
-            int count = getItemCount(repositoryInfo.getTagsUrl());
+            int count = getItemCount(repositoryInfo.getTagsUrl(), properties);
             repositoryInfo.setReleaseCount(count);
 
             return count > 10;
@@ -130,7 +124,7 @@ public class GitHubRequestUtil {
         }
     }
 
-    private static int getItemCount(String itemUriStr) {
+    private static int getItemCount(String itemUriStr, Properties properties) {
         int itemCount = 0;
 
         itemUriStr = itemUriStr.replace("{/sha}", "");
@@ -138,7 +132,7 @@ public class GitHubRequestUtil {
         try {
             URI requestUri = getItemURI(itemUriStr);
             HttpGet request = new HttpGet(requestUri);
-            request.addHeader(HttpHeaders.AUTHORIZATION, "token " + token);
+            request.addHeader(HttpHeaders.AUTHORIZATION, "token " + properties.getProperty("token"));
 
             CloseableHttpClient httpClient = HttpClients.createDefault();
             CloseableHttpResponse response = httpClient.execute(request);
@@ -162,13 +156,13 @@ public class GitHubRequestUtil {
         return itemCount;
     }
 
-    private static String processGithubRequest(URI requestUri) {
+    private static String processGithubRequest(URI requestUri, Properties properties) {
         CloseableHttpClient httpClient = HttpClients.createDefault();
         String responseJson = "";
 
         try {
             HttpGet request = new HttpGet(requestUri);
-            request.addHeader(HttpHeaders.AUTHORIZATION, "token " + token);
+            request.addHeader(HttpHeaders.AUTHORIZATION, "token " + properties.getProperty("token"));
 
             CloseableHttpResponse response = httpClient.execute(request);
             HttpEntity responseEntity = response.getEntity();
@@ -210,13 +204,13 @@ public class GitHubRequestUtil {
         return uriBuilder.build();
     }
 
-    private static String getSearchParams(LocalDate searchFrom, LocalDate searchTo) {
-        String language = "java";
-        int minStars = 500;
+    private static String getSearchParams(LocalDate searchFrom, LocalDate searchTo, Properties properties) {
+        String language = properties.getProperty("language");
+        int minStars = Integer.valueOf(properties.getProperty("minimumStars"));
         String createdFrom = searchFrom.toString();
         String createdTo = searchTo.toString();
-        String lastUpdated = "2020-01-01";
-        int minForks = 20;
+        String lastUpdated = properties.getProperty("lastUpdated");
+        int minForks = Integer.valueOf(properties.getProperty("minimumForks"));
 
         return " language:" + language
                 + " stars:>" + minStars

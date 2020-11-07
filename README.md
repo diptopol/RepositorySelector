@@ -1,4 +1,4 @@
-# RepositorySelector
+# Github RepositorySelector
 
 Repositories are searched from github  based on these attributes.
     -  More than 100 commits

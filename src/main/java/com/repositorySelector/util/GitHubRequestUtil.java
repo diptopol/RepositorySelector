@@ -216,7 +216,8 @@ public class GitHubRequestUtil {
                 + " stars:>" + minStars
                 + " created:" + createdFrom + ".." + createdTo
                 + " pushed:>=" + lastUpdated
-                + " forks:>=" + minForks;
+                + " forks:>=" + minForks
+                + " fork:false";
     }
 
 }

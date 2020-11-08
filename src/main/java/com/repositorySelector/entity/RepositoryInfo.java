@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.Date;
+import java.util.Objects;
 
 /**
  * @author Diptopol
@@ -154,5 +155,18 @@ public class RepositoryInfo {
 
     public void setLatestPushedCommitDate(Date latestPushedCommitDate) {
         this.latestPushedCommitDate = latestPushedCommitDate;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RepositoryInfo that = (RepositoryInfo) o;
+        return id == that.id;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

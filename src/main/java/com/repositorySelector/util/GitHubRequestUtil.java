@@ -13,6 +13,8 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,6 +34,8 @@ import java.util.stream.Collectors;
  * @since 11/6/2020 11:48 PM
  */
 public class GitHubRequestUtil {
+
+    private static Logger logger = LoggerFactory.getLogger(GitHubRequestUtil.class);
 
     private static final int MAX_ITEM_LIMIT = 100;
 
@@ -55,20 +59,28 @@ public class GitHubRequestUtil {
                     if (totalCount == -1) {
                         totalCount = repositoryResponse.getTotalCount();
 
-                        System.out.println("totalCount: " + totalCount + "; searchFrom: " + searchFrom
-                                + "; searchTo: " + searchFrom.plusYears(1));
+                        logger.info("Total Repository Count (By year): {}; searchFrom: {}; searchTo: {}",
+                                totalCount, searchFrom, searchFrom.plusYears(1));
                     }
 
                     repositoryInfoList.addAll(repositoryResponse.getItems());
                     currentPage++;
 
                 } catch (URISyntaxException | IOException ex) {
-                    ex.printStackTrace();
+                    logger.error(ex.getMessage(), ex);
                 }
             } while (repositoryInfoList.size() < totalCount);
 
             searchFrom = searchFrom.plusYears(1);
         }
+
+        logger.info("Total Repository Count (Before distinct): {}", repositoryInfoList.size());
+
+        repositoryInfoList = repositoryInfoList.stream()
+                .distinct()
+                .collect(Collectors.toList());
+
+        logger.info("Total Repository Count (before Filter): {}", repositoryInfoList.size());
 
         Predicate<RepositoryInfo> commitCountPredicate = repositoryInfo -> {
             int count = getItemCount(repositoryInfo.getCommitsUrl(), properties);
@@ -97,7 +109,7 @@ public class GitHubRequestUtil {
 
         repositoryInfoList = getFilteredRepositoryList(repositoryInfoList, releaseCountPredicate);
 
-        System.out.println("Total Repository List Size: " + repositoryInfoList.size());
+        logger.info("Total Repository List Size (After all filter): {}", repositoryInfoList.size());
 
         serializeRepositoryList(repositoryInfoList);
     }
@@ -107,7 +119,7 @@ public class GitHubRequestUtil {
             getObjectMapper().writeValue(new File("output/repositoryList.json"), repositoryInfoList);
 
         } catch (IOException ex) {
-            ex.printStackTrace();
+            logger.error(ex.getMessage(), ex);
         }
     }
 
@@ -120,7 +132,9 @@ public class GitHubRequestUtil {
                 .collect(Collectors.toList());
 
         Date end = new Date();
-        System.out.println("Elapsed Time (In Seconds):" + TimeUnit.MILLISECONDS.toSeconds(end.getTime() - start.getTime()));
+        logger.info("Elapsed Time (In Seconds): {}",
+                TimeUnit.MILLISECONDS.toSeconds(end.getTime() - start.getTime()));
+
         return repositoryInfoList;
     }
 
@@ -147,10 +161,12 @@ public class GitHubRequestUtil {
                 if (matcher.find()) {
                     itemCount = Integer.valueOf(matcher.group(0));
                 }
+            } else {
+                logger.info(EntityUtils.toString(response.getEntity()));
             }
 
         } catch (IOException | URISyntaxException ex) {
-            ex.printStackTrace();
+            logger.error(ex.getMessage(), ex);
         }
 
         return itemCount;
@@ -170,7 +186,7 @@ public class GitHubRequestUtil {
             responseJson = EntityUtils.toString(responseEntity, StandardCharsets.UTF_8);
 
         } catch (IOException ex) {
-            ex.printStackTrace();
+            logger.error(ex.getMessage(), ex);
     }
 
         return responseJson;

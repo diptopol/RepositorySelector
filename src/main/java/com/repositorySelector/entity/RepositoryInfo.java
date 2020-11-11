@@ -15,13 +15,8 @@ public class RepositoryInfo {
     private int id;
     private String fullName;
 
-    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String contributorsUrl;
-
-    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String tagsUrl;
-
-    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String commitsUrl;
 
     private int commitCount;
@@ -29,6 +24,8 @@ public class RepositoryInfo {
     private int contributorCount;
     private int stargazersCount;
     private int forksCount;
+
+    private boolean fork;
 
     private String url;
     private String htmlUrl;
@@ -41,6 +38,9 @@ public class RepositoryInfo {
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
     private Date latestPushedCommitDate;
 
+    private boolean commitCountSuccess;
+    private boolean releaseCountSuccess;
+    private boolean contributorCountSuccess;
 
     public RepositoryInfo() {
     }
@@ -125,6 +125,14 @@ public class RepositoryInfo {
         this.forksCount = forksCount;
     }
 
+    public boolean isFork() {
+        return fork;
+    }
+
+    public void setFork(boolean fork) {
+        this.fork = fork;
+    }
+
     public String getUrl() {
         return url;
     }
@@ -155,6 +163,30 @@ public class RepositoryInfo {
 
     public void setLatestPushedCommitDate(Date latestPushedCommitDate) {
         this.latestPushedCommitDate = latestPushedCommitDate;
+    }
+
+    public boolean isCommitCountSuccess() {
+        return commitCountSuccess;
+    }
+
+    public void setCommitCountSuccess(boolean commitCountSuccess) {
+        this.commitCountSuccess = commitCountSuccess;
+    }
+
+    public boolean isReleaseCountSuccess() {
+        return releaseCountSuccess;
+    }
+
+    public void setReleaseCountSuccess(boolean releaseCountSuccess) {
+        this.releaseCountSuccess = releaseCountSuccess;
+    }
+
+    public boolean isContributorCountSuccess() {
+        return contributorCountSuccess;
+    }
+
+    public void setContributorCountSuccess(boolean contributorCountSuccess) {
+        this.contributorCountSuccess = contributorCountSuccess;
     }
 
     @Override

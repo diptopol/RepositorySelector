@@ -1,11 +1,13 @@
 package com.repositorySelector.init;
 
+import com.repositorySelector.entity.RepositoryInfo;
 import com.repositorySelector.util.GitHubRequestUtil;
 import com.repositorySelector.util.PropertyReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -27,7 +29,15 @@ public class App {
             }
         }
 
-        GitHubRequestUtil.processRepositoryRequest(propertyReader.getProperties());
+
+        List<RepositoryInfo> repositoryInfoList = GitHubRequestUtil.readRepositoryList();
+
+        if (repositoryInfoList.isEmpty()) {
+            logger.info("repository list is empty");
+            GitHubRequestUtil.initialProcessRepositoryRequest(propertyReader.getProperties());
+        }
+
+        GitHubRequestUtil.filterAndSerialize(propertyReader.getProperties());
     }
 
 

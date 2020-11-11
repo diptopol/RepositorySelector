@@ -1,6 +1,8 @@
 package com.repositorySelector.util;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategy;
 import com.repositorySelector.entity.RepositoryInfo;
@@ -24,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -39,14 +42,15 @@ public class GitHubRequestUtil {
 
     private static final int MAX_ITEM_LIMIT = 100;
 
-    public static void processRepositoryRequest(Properties properties) {
+    public static void initialProcessRepositoryRequest(Properties properties) {
         List<RepositoryInfo> repositoryInfoList = new ArrayList<>();
 
         LocalDate searchFrom = LocalDate.parse(properties.getProperty("searchStartsFrom"));
 
         while (searchFrom.isBefore(LocalDate.parse(properties.getProperty("searchEnds")))) {
+            List<RepositoryInfo> repositoryInfoListByYear = new ArrayList<>();
             int totalCount = -1;
-            int currentPage = 0;
+            int currentPage = 1;
             do {
                 try {
                     String repositoryResponseJson = processGithubRequest(getGithubRepositoryURI(currentPage,
@@ -63,13 +67,15 @@ public class GitHubRequestUtil {
                                 totalCount, searchFrom, searchFrom.plusYears(1));
                     }
 
-                    repositoryInfoList.addAll(repositoryResponse.getItems());
+                    repositoryInfoListByYear.addAll(repositoryResponse.getItems());
                     currentPage++;
 
                 } catch (URISyntaxException | IOException ex) {
                     logger.error(ex.getMessage(), ex);
                 }
-            } while (repositoryInfoList.size() < totalCount);
+            } while (repositoryInfoListByYear.size() < totalCount);
+
+            repositoryInfoList.addAll(repositoryInfoListByYear);
 
             searchFrom = searchFrom.plusYears(1);
         }
@@ -82,45 +88,126 @@ public class GitHubRequestUtil {
 
         logger.info("Total Repository Count (before Filter): {}", repositoryInfoList.size());
 
-        Predicate<RepositoryInfo> commitCountPredicate = repositoryInfo -> {
-            int count = getItemCount(repositoryInfo.getCommitsUrl(), properties);
-            repositoryInfo.setCommitCount(count);
+        sortAndserializeRepositoryList(repositoryInfoList);
+    }
 
-            return count > Integer.valueOf(properties.getProperty("minimumCommits"));
+    public static void filterAndSerialize(Properties properties) {
+        List<RepositoryInfo> repositoryInfoList = readRepositoryList();
+
+        filterAndSerializeRepositoryList(repositoryInfoList, properties);
+    }
+
+    public static List<RepositoryInfo> readRepositoryList() {
+        List<RepositoryInfo> repositoryInfoList = new ArrayList<>();
+
+        try {
+            repositoryInfoList.addAll(getObjectMapper().readValue(new File("output/repositoryList.json"), new TypeReference<List<RepositoryInfo>>() {
+            }));
+        } catch (IOException ex) {
+            logger.error(ex.getMessage(), ex);
+        }
+
+        return repositoryInfoList;
+    }
+
+    private static void sortAndserializeRepositoryList(List<RepositoryInfo> repositoryInfoList) {
+        sortAndSerializeRepositoryList(repositoryInfoList, "repositoryList.json");
+    }
+
+    private static void sortAndSerializeRepositoryList(List<RepositoryInfo> repositoryInfoList, String fileName) {
+        repositoryInfoList.sort(Comparator.comparing(RepositoryInfo::getStargazersCount));
+
+        try {
+            getObjectMapper().writeValue(new File("output/" + fileName), repositoryInfoList);
+
+        } catch (IOException ex) {
+            logger.error(ex.getMessage(), ex);
+        }
+    }
+
+    private static void filterAndSerializeRepositoryList(List<RepositoryInfo> repositoryInfoList, Properties properties) {
+        Consumer<RepositoryInfo> commitCountConsumer = repositoryInfo -> {
+            if (!repositoryInfo.isCommitCountSuccess()) {
+                int count = getItemCount(repositoryInfo.getCommitsUrl(), properties);
+                repositoryInfo.setCommitCount(count);
+                repositoryInfo.setCommitCountSuccess(true);
+            }
         };
 
-        repositoryInfoList = getFilteredRepositoryList(repositoryInfoList, commitCountPredicate);
+        processItemFetchForRepository(repositoryInfoList, commitCountConsumer);
+        sortAndserializeRepositoryList(repositoryInfoList);
 
-        Predicate<RepositoryInfo> contributorPredicate = repositoryInfo -> {
-            int count = getItemCount(repositoryInfo.getContributorsUrl(), properties);
-            repositoryInfo.setContributorCount(count);
+        int numberOfRepositoryWithCommitCount = (int) repositoryInfoList.stream()
+                .filter(repositoryInfo -> repositoryInfo.getCommitCount() > 0 && repositoryInfo.isCommitCountSuccess())
+                .count();
 
-            return count > Integer.valueOf(properties.getProperty("minimumContributor"));
+        logger.info("Commit Count fetch Completed: {}", numberOfRepositoryWithCommitCount);
+
+        Consumer<RepositoryInfo> contributorCountConsumer = repositoryInfo -> {
+            if (!repositoryInfo.isContributorCountSuccess()) {
+                int count = getItemCount(repositoryInfo.getContributorsUrl(), properties);
+                repositoryInfo.setContributorCount(count);
+                repositoryInfo.setContributorCountSuccess(true);
+            }
         };
+
+        processItemFetchForRepository(repositoryInfoList, contributorCountConsumer);
+        sortAndserializeRepositoryList(repositoryInfoList);
+
+        int numberOfRepositoryWithContributorsCount = (int) repositoryInfoList.stream()
+                .filter(repositoryInfo -> repositoryInfo.getContributorCount() > 0 && repositoryInfo.isContributorCountSuccess())
+                .count();
+
+        logger.info("Contributor Count fetch Completed: {}", numberOfRepositoryWithContributorsCount);
+
+        Consumer<RepositoryInfo> repositoryInfoConsumer = repositoryInfo -> {
+            if (!repositoryInfo.isReleaseCountSuccess()) {
+                int count = getItemCount(repositoryInfo.getTagsUrl(), properties);
+                repositoryInfo.setReleaseCount(count);
+                repositoryInfo.setReleaseCountSuccess(true);
+            }
+        };
+
+        processItemFetchForRepository(repositoryInfoList, repositoryInfoConsumer);
+        sortAndserializeRepositoryList(repositoryInfoList);
+
+        int numberOfRepositoryWithReleaseCount = (int) repositoryInfoList.stream()
+                .filter(repositoryInfo -> repositoryInfo.getReleaseCount() > 0 && repositoryInfo.isReleaseCountSuccess())
+                .count();
+
+        logger.info("Release Count fetch Completed: {}", numberOfRepositoryWithReleaseCount);
+
+        logger.info("Total Repository List Size (Before all filter): {}", repositoryInfoList.size());
+
+        Predicate<RepositoryInfo> contributorPredicate =
+                repositoryInfo -> repositoryInfo.getContributorCount() >= Integer.valueOf(properties.getProperty("minimumContributor"));
 
         repositoryInfoList = getFilteredRepositoryList(repositoryInfoList, contributorPredicate);
 
-        Predicate<RepositoryInfo> releaseCountPredicate = repositoryInfo -> {
-            int count = getItemCount(repositoryInfo.getTagsUrl(), properties);
-            repositoryInfo.setReleaseCount(count);
 
-            return count > Integer.valueOf(properties.getProperty("minimumRelease"));
-        };
+        Predicate<RepositoryInfo> commitCountPredicate =
+                repositoryInfo -> repositoryInfo.getCommitCount() >= Integer.valueOf(properties.getProperty("minimumCommits"));
+
+        repositoryInfoList = getFilteredRepositoryList(repositoryInfoList, commitCountPredicate);
+
+        Predicate<RepositoryInfo> releaseCountPredicate =
+                repositoryInfo -> repositoryInfo.getReleaseCount() >= Integer.valueOf(properties.getProperty("minimumRelease"));
 
         repositoryInfoList = getFilteredRepositoryList(repositoryInfoList, releaseCountPredicate);
 
         logger.info("Total Repository List Size (After all filter): {}", repositoryInfoList.size());
 
-        serializeRepositoryList(repositoryInfoList);
+        sortAndSerializeRepositoryList(repositoryInfoList, "filteredRepositoryList.json");
     }
 
-    public static void serializeRepositoryList(List<RepositoryInfo> repositoryInfoList) {
-        try {
-            getObjectMapper().writeValue(new File("output/repositoryList.json"), repositoryInfoList);
+    private static void processItemFetchForRepository(List<RepositoryInfo> repositoryInfoList,
+                                                      Consumer<RepositoryInfo> repositoryInfoConsumer) {
 
-        } catch (IOException ex) {
-            logger.error(ex.getMessage(), ex);
-        }
+        Date start = new Date();
+        repositoryInfoList.forEach(repositoryInfoConsumer);
+        Date end = new Date();
+        logger.info("Elapsed Time (In Seconds): {}",
+                TimeUnit.MILLISECONDS.toSeconds(end.getTime() - start.getTime()));
     }
 
     private static List<RepositoryInfo> getFilteredRepositoryList(List<RepositoryInfo> repositoryInfoList,
@@ -162,7 +249,15 @@ public class GitHubRequestUtil {
                     itemCount = Integer.valueOf(matcher.group(0));
                 }
             } else {
-                logger.info(EntityUtils.toString(response.getEntity()));
+                String json = EntityUtils.toString(response.getEntity());
+                JsonNode node = getObjectMapper().readValue(json, JsonNode.class);
+
+                if (node.isObject() && node.has("message") && node.get("message").isTextual()) {
+                    logger.info(json);
+
+                } else if (node.isArray()) {
+                    itemCount = node.size();
+                }
             }
 
         } catch (IOException | URISyntaxException ex) {
@@ -187,7 +282,7 @@ public class GitHubRequestUtil {
 
         } catch (IOException ex) {
             logger.error(ex.getMessage(), ex);
-    }
+        }
 
         return responseJson;
     }
@@ -212,10 +307,10 @@ public class GitHubRequestUtil {
         return uriBuilder.build();
     }
 
-    private static URI getItemURI(String itemUriStr)throws URISyntaxException {
+    private static URI getItemURI(String itemUriStr) throws URISyntaxException {
         URIBuilder uriBuilder = new URIBuilder(itemUriStr);
         uriBuilder.setParameter("per_page", String.valueOf(1));
-        uriBuilder.setParameter("page", String.valueOf(0));
+        uriBuilder.setParameter("page", String.valueOf(1));
 
         return uriBuilder.build();
     }
@@ -226,14 +321,13 @@ public class GitHubRequestUtil {
         String createdFrom = searchFrom.toString();
         String createdTo = searchTo.toString();
         String lastUpdated = properties.getProperty("lastUpdated");
-        int minForks = Integer.valueOf(properties.getProperty("minimumForks"));
 
         return " language:" + language
-                + " stars:>" + minStars
+                + " stars:>=" + minStars
                 + " created:" + createdFrom + ".." + createdTo
                 + " pushed:>=" + lastUpdated
-                + " forks:>=" + minForks
-                + " fork:false";
+                + " fork:false"
+                ;
     }
 
 }

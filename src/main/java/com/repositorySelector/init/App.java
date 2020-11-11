@@ -38,6 +38,12 @@ public class App {
         }
 
         GitHubRequestUtil.filterAndSerialize(propertyReader.getProperties());
+
+        /*
+         * default branch name fetch was missing at initial. So written this method to only fetch default_branch name
+         * afterwords to save request to github api.
+         */
+        //GitHubRequestUtil.populateDefaultBranch(propertyReader.getProperties());
     }
 
 

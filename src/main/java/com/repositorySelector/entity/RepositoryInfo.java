@@ -25,6 +25,8 @@ public class RepositoryInfo {
     private int stargazersCount;
     private int forksCount;
 
+    private String defaultBranch;
+
     private boolean fork;
 
     private String url;
@@ -123,6 +125,14 @@ public class RepositoryInfo {
 
     public void setForksCount(int forksCount) {
         this.forksCount = forksCount;
+    }
+
+    public String getDefaultBranch() {
+        return defaultBranch;
+    }
+
+    public void setDefaultBranch(String defaultBranch) {
+        this.defaultBranch = defaultBranch;
     }
 
     public boolean isFork() {

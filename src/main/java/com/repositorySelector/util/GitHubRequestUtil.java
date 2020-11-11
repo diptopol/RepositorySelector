@@ -1,10 +1,12 @@
 package com.repositorySelector.util;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategy;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.repositorySelector.entity.RepositoryInfo;
 import com.repositorySelector.entity.RepositoryResponse;
 import org.apache.http.HttpEntity;
@@ -98,16 +100,48 @@ public class GitHubRequestUtil {
     }
 
     public static List<RepositoryInfo> readRepositoryList() {
+        return readRepositoryList("repositoryList.json");
+    }
+
+    private static List<RepositoryInfo> readRepositoryList(String fileName) {
         List<RepositoryInfo> repositoryInfoList = new ArrayList<>();
 
         try {
-            repositoryInfoList.addAll(getObjectMapper().readValue(new File("output/repositoryList.json"), new TypeReference<List<RepositoryInfo>>() {
+            repositoryInfoList.addAll(getObjectMapper().readValue(new File("output/" + fileName), new TypeReference<List<RepositoryInfo>>() {
             }));
         } catch (IOException ex) {
             logger.error(ex.getMessage(), ex);
         }
 
         return repositoryInfoList;
+    }
+
+    public static void populateDefaultBranch(Properties properties) {
+        String fileName = "filteredRepositoryList.json";
+
+        List<RepositoryInfo> repositoryInfoList = readRepositoryList(fileName);
+
+        Consumer<RepositoryInfo> defaultBranchConsumer = repositoryInfo -> {
+            if (Objects.isNull(repositoryInfo.getDefaultBranch()) || repositoryInfo.getDefaultBranch().equals("")) {
+                String repositoryJson = processGithubRequest(URI.create(repositoryInfo.getUrl()), properties);
+
+                try {
+                     ObjectNode objectNode = getObjectMapper().readValue(repositoryJson, ObjectNode.class);
+
+                    if (objectNode.has("default_branch")) {
+                        repositoryInfo.setDefaultBranch(objectNode.get("default_branch").textValue());
+                    } else {
+                        logger.info(repositoryJson);
+                    }
+
+                } catch (JsonProcessingException ex) {
+                    logger.error(ex.getMessage(), ex);
+                }
+            }
+        };
+
+        processItemFetchForRepository(repositoryInfoList, defaultBranchConsumer);
+        sortAndSerializeRepositoryList(repositoryInfoList, fileName);
     }
 
     private static void sortAndserializeRepositoryList(List<RepositoryInfo> repositoryInfoList) {

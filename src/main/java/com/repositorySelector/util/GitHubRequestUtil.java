@@ -103,7 +103,7 @@ public class GitHubRequestUtil {
         return readRepositoryList("repositoryList.json");
     }
 
-    private static List<RepositoryInfo> readRepositoryList(String fileName) {
+    public static List<RepositoryInfo> readRepositoryList(String fileName) {
         List<RepositoryInfo> repositoryInfoList = new ArrayList<>();
 
         try {
@@ -141,6 +141,37 @@ public class GitHubRequestUtil {
         };
 
         processItemFetchForRepository(repositoryInfoList, defaultBranchConsumer);
+        sortAndSerializeRepositoryList(repositoryInfoList, fileName);
+    }
+
+    public static void filterOutRepositoryWithLastYearLessMinCommits(Properties properties) {
+        String fileName = "filteredRepositoryList.json";
+        List<RepositoryInfo> repositoryInfoList = readRepositoryList(fileName);
+
+        repositoryInfoList = repositoryInfoList.stream()
+                .filter(repositoryInfo ->
+                        repositoryInfo.getCommitCountInLastOneYear() >= Integer.valueOf(properties.getProperty("minimumCommits")))
+                .collect(Collectors.toList());
+
+        sortAndSerializeRepositoryList(repositoryInfoList, fileName);
+    }
+
+    public static void addingCommitCountsLastYear(Properties properties) {
+        String fileName = "filteredRepositoryList.json";
+        List<RepositoryInfo> repositoryInfoList = readRepositoryList(fileName);
+
+        Consumer<RepositoryInfo> commitCountLastYearConsumer = repositoryInfo -> {
+            try {
+                int count = getItemCount(getItemURI(repositoryInfo.getCommitsUrl(),
+                        Collections.singletonMap("since", properties.getProperty("lastUpdated"))), properties);
+
+                repositoryInfo.setCommitCountInLastOneYear(count);
+            } catch (URISyntaxException ex) {
+                logger.error(ex.getMessage(), ex);
+            }
+        };
+
+        processItemFetchForRepository(repositoryInfoList, commitCountLastYearConsumer);
         sortAndSerializeRepositoryList(repositoryInfoList, fileName);
     }
 
@@ -259,13 +290,9 @@ public class GitHubRequestUtil {
         return repositoryInfoList;
     }
 
-    private static int getItemCount(String itemUriStr, Properties properties) {
+    private static int getItemCount(URI requestUri, Properties properties) {
         int itemCount = 0;
-
-        itemUriStr = itemUriStr.replace("{/sha}", "");
-
         try {
-            URI requestUri = getItemURI(itemUriStr);
             HttpGet request = new HttpGet(requestUri);
             request.addHeader(HttpHeaders.AUTHORIZATION, "token " + properties.getProperty("token"));
 
@@ -294,7 +321,21 @@ public class GitHubRequestUtil {
                 }
             }
 
-        } catch (IOException | URISyntaxException ex) {
+        } catch (IOException ex) {
+            logger.error(ex.getMessage(), ex);
+        }
+
+        return itemCount;
+    }
+
+    private static int getItemCount(String itemUriStr, Properties properties) {
+        int itemCount = 0;
+
+        try {
+            URI requestUri = getItemURI(itemUriStr, null);
+            itemCount = getItemCount(requestUri, properties);
+
+        } catch (URISyntaxException ex) {
             logger.error(ex.getMessage(), ex);
         }
 
@@ -341,8 +382,17 @@ public class GitHubRequestUtil {
         return uriBuilder.build();
     }
 
-    private static URI getItemURI(String itemUriStr) throws URISyntaxException {
+    private static URI getItemURI(String itemUriStr, Map<String, String> additionalParams) throws URISyntaxException {
+        itemUriStr = itemUriStr.replace("{/sha}", "");
+
         URIBuilder uriBuilder = new URIBuilder(itemUriStr);
+
+        if (Objects.nonNull(additionalParams) && !additionalParams.isEmpty()) {
+            for (Map.Entry<String, String> entry : additionalParams.entrySet()) {
+                uriBuilder.setParameter(entry.getKey(), entry.getValue());
+            }
+        }
+
         uriBuilder.setParameter("per_page", String.valueOf(1));
         uriBuilder.setParameter("page", String.valueOf(1));
 

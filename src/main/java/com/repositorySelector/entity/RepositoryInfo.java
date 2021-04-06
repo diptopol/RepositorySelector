@@ -25,6 +25,8 @@ public class RepositoryInfo {
     private int stargazersCount;
     private int forksCount;
 
+    private int commitCountInLastOneYear;
+
     private String defaultBranch;
 
     private boolean fork;
@@ -125,6 +127,14 @@ public class RepositoryInfo {
 
     public void setForksCount(int forksCount) {
         this.forksCount = forksCount;
+    }
+
+    public int getCommitCountInLastOneYear() {
+        return commitCountInLastOneYear;
+    }
+
+    public void setCommitCountInLastOneYear(int commitCountInLastOneYear) {
+        this.commitCountInLastOneYear = commitCountInLastOneYear;
     }
 
     public String getDefaultBranch() {

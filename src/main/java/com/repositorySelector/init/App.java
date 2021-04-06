@@ -1,14 +1,15 @@
 package com.repositorySelector.init;
 
 import com.repositorySelector.entity.RepositoryInfo;
+import com.repositorySelector.refactoringDetection.RefactoringDetector;
 import com.repositorySelector.util.GitHubRequestUtil;
 import com.repositorySelector.util.PropertyReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @author Diptopol
@@ -30,20 +31,56 @@ public class App {
         }
 
 
-        List<RepositoryInfo> repositoryInfoList = GitHubRequestUtil.readRepositoryList();
+        /*List<RepositoryInfo> repositoryInfoList = GitHubRequestUtil.readRepositoryList();
 
         if (repositoryInfoList.isEmpty()) {
             logger.info("repository list is empty");
             GitHubRequestUtil.initialProcessRepositoryRequest(propertyReader.getProperties());
         }
 
-        GitHubRequestUtil.filterAndSerialize(propertyReader.getProperties());
+        GitHubRequestUtil.filterAndSerialize(propertyReader.getProperties());*/
+
+
+        List<RepositoryInfo> filteredRepositoryInfoList = GitHubRequestUtil.readRepositoryList("filteredRepositoryList.json");
+
+        filteredRepositoryInfoList = filteredRepositoryInfoList.stream()
+                .sorted(Comparator.comparing(RepositoryInfo::getReleaseCount))
+                .collect(Collectors.toList());
+
+        Collections.reverse(filteredRepositoryInfoList);
+
+        String projectName = "apache/hbase";
+
+        filteredRepositoryInfoList = filteredRepositoryInfoList.stream()
+                .filter(repositoryInfo -> repositoryInfo.getFullName().equals(projectName))
+                .collect(Collectors.toList());
+
+        // 0<= i <1
+        for (int i = 0; i < 1; i++) {
+            RefactoringDetector.detectRefactoringData(Collections.singletonList(filteredRepositoryInfoList.get(i)));
+        }
+
+
+
+        // total found refactoring 139
+        /*RefactoringDetector.detectRefactoringData(filteredRepositoryInfoList);
+        for (RepositoryInfo repositoryInfo : filteredRepositoryInfoList) {
+            RefactoringDetector.detectRefactoringData(Collections.singletonList(filteredRepositoryInfoList.get(20)));
+        }*/
+
 
         /*
          * default branch name fetch was missing at initial. So written this method to only fetch default_branch name
          * afterwords to save request to github api.
          */
         //GitHubRequestUtil.populateDefaultBranch(propertyReader.getProperties());
+
+        /*
+         * Filtered out repository which has more than 100 commits since 2019-11-1
+         */
+
+        //GitHubRequestUtil.addingCommitCountsLastYear(propertyReader.getProperties());
+        //GitHubRequestUtil.filterOutRepositoryWithLastYearLessMinCommits(propertyReader.getProperties());
     }
 
 

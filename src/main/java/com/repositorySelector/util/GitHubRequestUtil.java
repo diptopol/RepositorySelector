@@ -21,7 +21,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -173,6 +175,26 @@ public class GitHubRequestUtil {
 
         processItemFetchForRepository(repositoryInfoList, commitCountLastYearConsumer);
         sortAndSerializeRepositoryList(repositoryInfoList, fileName);
+    }
+
+
+    public static void outputCSV(String projectName, List<String> commitIds) {
+        projectName = projectName.replaceAll("/", "_");
+        File file = new File("output/" + projectName + ".csv");
+
+        try {
+            PrintWriter pw = new PrintWriter(file);
+
+            pw.write("CommitId\n");
+            for (String commitId : commitIds) {
+                pw.print(commitId+"\n");
+            }
+
+            pw.flush();
+            pw.close();
+        } catch (FileNotFoundException ex) {
+            ex.printStackTrace();
+        }
     }
 
     private static void sortAndserializeRepositoryList(List<RepositoryInfo> repositoryInfoList) {
